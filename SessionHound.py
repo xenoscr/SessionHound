@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 
-import argparse, csv, datetime, logging, os, sys
+import argparse, csv, datetime, getpass, logging, os, sys
 from neo4j import GraphDatabase
 from timeit import default_timer as timer
 
@@ -33,7 +33,7 @@ class bhDB(object):
     def updateDBInfo(self):
         self.neo4jDB = input_default('Enter the Neo4j Bolt URL:', self.neo4jDB)
         self.username = input_default('Enter the username:', self.username)
-        self.password = input_default('Enter the password:', self.password)
+        self.password = input_default('Enter the password:', self.password, True)
         print('\n')
     
     def connectDB(self):
@@ -73,21 +73,39 @@ class bhDB(object):
             logging.error('Failed to close Neo4j database.')
             logging.error(e)
     
-    def runQuery(self, query, parameters=None):
+    def runQuery(self, query, queryType, parameters=None):
         try:
             session = self.driver.session()
             start = timer()
-            results = session.run(query, parameters)
-            logging.info('{} ran in {}s'.format(query, timer() - start))
+            results = session.run(query, parameters=parameters)
+            logging.debug('{} with userName = {} and hostName = {} ran in {}s'.format(query, parameters['userName'], parameters['hostName'], timer() - start))
         except Exception as e:
             logging.error('Query failed.')
             logging.error(e)
             raise SystemExit
-        resultList = []
-        keys = results.keys()
-        for result in results:
-            resultList.append(result[keys[0]])
-        return resultList
+        if queryType == 'int':
+            for result in results:
+                return result[0]
+        elif queryType == 'list':
+            resultList = []
+            keys = results.keys()
+            for result in results:
+                fullRet = ''
+                tKeys = len(keys)
+                for key in range(0, tKeys):
+                    fullRet += '{}: {}'.format(keys[key], result[key])
+                    if (key + 1) < tKeys:
+                        logging.debug('key: {}, tKeys: {}'.format(key, tKeys))
+                        fullRet += ', '
+                resultList.append(fullRet)
+            return resultList
+
+def input_default(prompt, default, secure=False):
+    if secure:
+        return getpass.getpass('{} [{}]:'.format(prompt, default)) or default
+    else:
+        return input('{} [{}]'.format(prompt, default)) or default
+
 def query_yes_no(question, default="no"):
     valid = {'yes': True, 'y': True, 'ye': True, 'no': False, 'n': False}
 
@@ -150,17 +168,27 @@ def main(csvData, domain):
     # Import the data
     print('[+] Importing data from CSV file...')
 
+    existsQuery = """MATCH (c:Computer), (u:User), p=(c)-[r:HasSession]->(u)
+        WHERE c.name = $hostName AND u.name = $userName
+        RETURN COUNT(p)"""
+    addQuery = """MATCH (c:Computer), (u:User)
+        WHERE c.name = $hostName AND u.name = $userName
+        CREATE (c)-[r:HasSession]->(u)
+        RETURN type(r)"""
+
     for user in csvData:
-        query = """MATCH (c:Computer {name:{userName}}), (u:User {name:{hostName}})
-            CREATE (c)-[r:HasSession]->(u)
-            RETURN type(r)"""
-        print('Username: {} - Hostname: {}'.format(user['userName'], user['hostName']))
-        # bhDatabase.runQuery(query, 
+        if bhDatabase.runQuery(existsQuery, 'int', user) < 1:
+            if 'HasSession' in bhDatabase.runQuery(addQuery, 'list', user):
+                logging.info('Successfully added session for {} to {}.'.format(user['userName'], user['hostName']))
+            else:
+                logging.info('Failed to add session for {} to {}.'.format(user['userName'], user['hostName']))
+        else:
+            logging.info('Session information already exists for userName = {} on hostName = {}, skiping.'.format(user['userName'], user['hostName']))
 
 if __name__ == "__main__":
     # Setup logging
     logLvl = logging.INFO
-    logging.basicConfig(level=logLvl, format='%(asctime)s - %(levelname)s: $(message)s')
+    logging.basicConfig(level=logLvl, format='%(asctime)s - %(levelname)s: %(message)s')
     logging.debug('Debugging logging is on.')
 
     # Parse the command line arguments
