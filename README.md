@@ -42,4 +42,4 @@ user01@example.com,host01.example.com
 user02@example.com,host01.example.com
 user02@example.com,host02.example.com
 ```
-*NOTE:* If using Excel to prepare your CSV, saving the CSV in Unicode/UTF-8 format will cause some errors. To avoid these issues use the *CSV (Comma delimited)* option and not *CSV UTF-8 (Comma delimited)*.
+**NOTE:** If using Excel to prepare your CSV, saving the CSV in Unicode/UTF-8 format will cause some errors. To avoid these issues use the **CSV (Comma delimited)** option and not **CSV UTF-8 (Comma delimited)**.
