@@ -73,7 +73,7 @@ class bhDB(object):
             logging.error('Failed to close Neo4j database.')
             logging.error(e)
     
-    def runQuery(self, query, queryType, parameters=None):
+    def runQuery(self, query, parameters=None, queryType=None):
         try:
             session = self.driver.session()
             start = timer()
@@ -98,6 +98,12 @@ class bhDB(object):
                         logging.debug('key: {}, tKeys: {}'.format(key, tKeys))
                         fullRet += ', '
                 resultList.append(fullRet)
+            return resultList
+        else
+            resultList = []
+            keys = results.keys()
+            for result in results:
+                resultList.append(result[keys[0]])
             return resultList
 
 def input_default(prompt, default, secure=False):
@@ -177,8 +183,8 @@ def main(csvData, domain):
         RETURN type(r)"""
 
     for user in csvData:
-        if bhDatabase.runQuery(existsQuery, 'int', user) < 1:
-            if 'HasSession' in bhDatabase.runQuery(addQuery, 'list', user):
+        if bhDatabase.runQuery(existsQuery, user, 'int') < 1:
+            if 'HasSession' in bhDatabase.runQuery(addQuery, user):
                 logging.info('Successfully added session for {} to {}.'.format(user['userName'], user['hostName']))
             else:
                 logging.info('Failed to add session for {} to {}.'.format(user['userName'], user['hostName']))
