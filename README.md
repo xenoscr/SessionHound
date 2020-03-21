@@ -9,7 +9,6 @@ Session information can be obtained from alternate sources. This information can
 
 ## Requirments
 ```
-argparse
 neo4j
 ```
 
