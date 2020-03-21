@@ -99,7 +99,7 @@ class bhDB(object):
                         fullRet += ', '
                 resultList.append(fullRet)
             return resultList
-        else
+        else:
             resultList = []
             keys = results.keys()
             for result in results:
