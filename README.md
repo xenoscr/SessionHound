@@ -1,5 +1,5 @@
-# SessionHound
-A script to import session information that has been collected from alternate data sources  into BloodHound's Neo4j database.
+# SessionHound & GroupHound
+A pair of scripts to import session and local group information that has been collected from alternate data sources into BloodHound's Neo4j database.
 
 ## Problem
 SharpHound's privileged session collection requires an account with elevated permissions to operate. When using BloodHound as a Blue tool to locate and resolve misconfigurations and identify dangerous behaviors, detailed and accurate session information is highly beneficial. An account that has local administrative rights on all endpoints is a security risk.
@@ -12,7 +12,7 @@ Session information can be obtained from alternate sources. This information can
 neo4j
 ```
 
-## Usage
+## SessionHound Usage
 ```
 usage: SessionHound.py [-h] [-d DOMAIN] [-c CSV]
 
@@ -29,16 +29,47 @@ optional arguments:
                         to import.
 ```
 
-## CSV File Format
+## SessionHound CSV File Format
 The CSV file needs to have two columns:
 - username: The User Principal Name (UPN). i.e. USER01@EXAMPLE.COM
 - hostname: The Host's FQDN. i.e. HOSTNAME.EXAMPLE.COM
 
-### Example
+### SessionHound CSV Example
 ```
 username,hostname
 user01@example.com,host01.example.com
 user02@example.com,host01.example.com
 user02@example.com,host02.example.com
 ```
+
+## GroupHound Usage
+```
+usage: GroupHound.py [-h] [-d DOMAIN] [-c CSV] [-t TYPE]
+
+Import computer local group data from a CSV file into BloodHound's Neo4j database. The CSV should have three colums matching the following header structure: ['username', 'hostname',
+'type']
+
+optional arguments:
+  -h, --help            show this help message and exit
+  -d DOMAIN, --domain DOMAIN
+                        The base AD Domain for your environment. i.e. EXAMPLE.COM
+  -c CSV, --csv CSV     The path to the CSV file containing the session data to import.
+  -t TYPE, --type TYPE  The access type: AdminTo or CanRDP.
+```
+
+## GroupHound CSV File Format
+The CSV file needs to have three columns:
+- username: The User Principal Name (UPN). i.e. USER01@EXAMPLE.COM
+- hostname: The Host's FQDN. i.e. HOSTNAME.EXAMPLE.COM
+- type: The object type. Group or User
+
+### Groupound CSV Example
+```
+username,hostname,type
+user01@example.com,host01.example.com,User
+user02@example.com,host01.example.com,User
+group01@example.com,host02.example.com,Group
+group02@example.com,host02.example.com,Group
+```
+
 **NOTE:** If using Excel to prepare your CSV, saving the CSV in Unicode/UTF-8 format will cause some errors. To avoid these issues use the **CSV (Comma delimited)** option and not **CSV UTF-8 (Comma delimited)**.

@@ -73,10 +73,13 @@ class bhDB(object):
             logging.error('Failed to close Neo4j database.')
             logging.error(e)
     
-    def runQuery(self, query, parameters=None, queryType=None):
+    def runQuery(self, query, parameters=None, relation=None, queryType=None):
+        print(relation)
         try:
             session = self.driver.session()
             start = timer()
+            if (parameters['type']):
+                query = query.format(lType = parameters['type'], relation = relation)
             results = session.run(query, parameters=parameters)
             logging.debug('{} with userName = {} and hostName = {} ran in {}s'.format(query, parameters['userName'], parameters['hostName'], timer() - start))
         except Exception as e:
@@ -142,19 +145,19 @@ def getCSVData(csvPath):
     sessionList = []
     with open(csvPath, 'r') as csvFile:
         header = next(csv.reader(csvFile))
-        if not header == ['username', 'hostname']:
+        if not header == ['username', 'hostname', 'type']:
             return None
     with open(csvPath, 'r') as csvFile:
         csvReader = csv.DictReader(csvFile)
         try:
             for row in csvReader:
-                sessionList.append({'userName': row['username'].upper(), 'hostName':  row['hostname'].upper()})
+                sessionList.append({'userName': row['username'].upper(), 'hostName':  row['hostname'].upper(), 'type': row['type'].capitalize()})
         except Exception as e:
             print(row)
             print(e)
         return sessionList
 
-def main(csvData, domain):
+def main(csvData, domain, relationType):
     # Create a BloodHound Neo4j Database Object
     bhDatabase = bhDB(logging, domain.upper())
 
@@ -178,23 +181,29 @@ def main(csvData, domain):
     # Import the data
     print('[+] Importing data from CSV file...')
 
-    existsQuery = """MATCH (c:Computer), (u:User), p=(c)-[r:HasSession]->(u)
+    # Set the relationship type
+    if (relationType == 'adminto'):
+        relation = "AdminTo"
+    elif (relationType == 'canrdp'):
+        relation = "CanRDP"
+
+    existsQuery = """MATCH (c:Computer), (u:{lType}), p=(u)-[r:{relation}]->(c)
         WHERE c.name = $hostName AND u.name = $userName
         RETURN COUNT(p)"""
-    addQuery = """MATCH (c:Computer), (u:User)
+    addQuery = """MATCH (c:Computer), (u:{lType})
         WHERE c.name = $hostName AND u.name = $userName
-        CREATE (c)-[r:HasSession]->(u)
+        CREATE (u)-[r:{relation}]->(c)
         RETURN type(r)"""
 
     for user in csvData:
         logging.debug(user)
-        if bhDatabase.runQuery(existsQuery, user, 'int') < 1:
-            if 'HasSession' in bhDatabase.runQuery(addQuery, user):
-                logging.info('Successfully added session for {} to {}.'.format(user['userName'], user['hostName']))
+        if bhDatabase.runQuery(existsQuery, user, relation, 'int') < 1:
+            if relation in bhDatabase.runQuery(addQuery, user, relation):
+                logging.info('Successfully added relation for {} to {}.'.format(user['userName'], user['hostName']))
             else:
-                logging.info('Failed to add session for {} to {}.'.format(user['userName'], user['hostName']))
+                logging.info('Failed to add relation for {} to {}.'.format(user['userName'], user['hostName']))
         else:
-            logging.info('Session information already exists for userName = {} on hostName = {}, skiping.'.format(user['userName'], user['hostName']))
+            logging.info('Relation information already exists for userName = {} on hostName = {}, skiping.'.format(user['userName'], user['hostName']))
         #time.sleep(1)
 
 if __name__ == "__main__":
@@ -204,9 +213,10 @@ if __name__ == "__main__":
     logging.debug('Debugging logging is on.')
 
     # Parse the command line arguments
-    parser = argparse.ArgumentParser(description = 'Import computer session data from a CSV file into BloodHound\'s Neo4j database.\n\nThe CSV should have two colums matching the following header structure:\n\n[\'username\', \'hostname\']\n\n')
+    parser = argparse.ArgumentParser(description = 'Import computer local group  data from a CSV file into BloodHound\'s Neo4j database.\n\nThe CSV should have three colums matching the following header structure:\n\n[\'username\', \'hostname\', \'type\']\n\n')
     parser.add_argument('-d', '--domain', type=str, help='The base AD Domain for your environment. i.e. EXAMPLE.COM')
     parser.add_argument('-c', '--csv', type=str, help='The path to the CSV file containing the session data to import.')
+    parser.add_argument('-t', '--type', type=str, help='The access type: AdminTo or CanRDP.')
     args = parser.parse_args()
 
     if args.domain:
@@ -214,7 +224,13 @@ if __name__ == "__main__":
             if os.path.exists(args.csv):
                 csvData = getCSVData(args.csv)
                 if csvData:
-                    main(csvData, args.domain)
+                    if args.type:
+                        validRelation = ['adminto', 'canrdp']
+                        if (args.type.lower() in validRelation): 
+                            main(csvData, args.domain, args.type.lower())
+                        else:
+                            print('Please check the relationship type you specified.\n')
+                            parser.print_help(sys.stderr)
                 else:
                     print('Please check the format of your CSV file and ensure it has the expected structure.\n')
                     parser.print_help(sys.stderr)
