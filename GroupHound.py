@@ -186,6 +186,10 @@ def main(csvData, domain, relationType):
         relation = "AdminTo"
     elif (relationType == 'canrdp'):
         relation = "CanRDP"
+    elif (relationType == 'canpsremote'):
+        relation = "CanPSRemote"
+    elif (relationType == 'executedcom'):
+        relation = "ExecuteDCOM"
 
     existsQuery = """MATCH (c:Computer), (u:{lType}), p=(u)-[r:{relation}]->(c)
         WHERE c.name = $hostName AND u.name = $userName
@@ -195,15 +199,41 @@ def main(csvData, domain, relationType):
         CREATE (u)-[r:{relation}]->(c)
         RETURN type(r)"""
 
+    existsQuerySID = """MATCH (c:Computer), (u:{lType}), p=(u)-[r:{relation}]->(c)
+        WHERE c.name = $hostName AND u.objectid = $userName
+        RETURN COUNT(p)"""
+    addQuerySID = """MATCH (c:Computer), (u:{lType})
+        WHERE c.name = $hostName AND u.objectid = $userName
+        CREATE (u)-[r:{relation}]->(c)
+        RETURN type(r)"""
+
     for user in csvData:
         logging.debug(user)
-        if bhDatabase.runQuery(existsQuery, user, relation, 'int') < 1:
-            if relation in bhDatabase.runQuery(addQuery, user, relation):
-                logging.info('Successfully added relation for {} to {}.'.format(user['userName'], user['hostName']))
+        if user['userName'].upper().startswith('S-1-5-'):
+            user['userName'] = user['userName'].split('@')[0]
+            if bhDatabase.runQuery(existsQuerySID, user, relation, 'int') < 1:
+                if relation in bhDatabase.runQuery(addQuerySID, user, relation):
+                    logging.info('Successfully added relation for {} to {}.'.format(user['userName'], user['hostName']))
+                else:
+                    logging.info('Failed to add relation for {} to {}.'.format(user['userName'], user['hostName']))
             else:
-                logging.info('Failed to add relation for {} to {}.'.format(user['userName'], user['hostName']))
+                # Try to see if it's a group
+                user['type'] = "Group"
+                if bhDatabase.runQuery(existsQuerySID, user, relation, 'int') < 1:
+                    if relation in bhDatabase.runQuery(addQuerySID, user, relation):
+                        logging.info('Successfully added relation for {} to {}.'.format(user['userName'], user['hostName']))
+                    else:
+                        logging.info('Failed to add relation for {} to {}.'.format(user['userName'], user['hostName']))
+                else:
+                    logging.info('Relation information already exists for userName = {} on hostName = {}, skiping.'.format(user['userName'], user['hostName']))
         else:
-            logging.info('Relation information already exists for userName = {} on hostName = {}, skiping.'.format(user['userName'], user['hostName']))
+            if bhDatabase.runQuery(existsQuery, user, relation, 'int') < 1:
+                if relation in bhDatabase.runQuery(addQuery, user, relation):
+                    logging.info('Successfully added relation for {} to {}.'.format(user['userName'], user['hostName']))
+                else:
+                    logging.info('Failed to add relation for {} to {}.'.format(user['userName'], user['hostName']))
+            else:
+                logging.info('Relation information already exists for userName = {} on hostName = {}, skiping.'.format(user['userName'], user['hostName']))
         #time.sleep(1)
 
 if __name__ == "__main__":
@@ -216,7 +246,7 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(description = 'Import computer local group  data from a CSV file into BloodHound\'s Neo4j database.\n\nThe CSV should have three colums matching the following header structure:\n\n[\'username\', \'hostname\', \'type\']\n\n')
     parser.add_argument('-d', '--domain', type=str, help='The base AD Domain for your environment. i.e. EXAMPLE.COM')
     parser.add_argument('-c', '--csv', type=str, help='The path to the CSV file containing the session data to import.')
-    parser.add_argument('-t', '--type', type=str, help='The access type: AdminTo or CanRDP.')
+    parser.add_argument('-t', '--type', type=str, help='The access type: AdminTo, CanRDP, CanPSRemote, or ExecuteDCOM.')
     args = parser.parse_args()
 
     if args.domain:
@@ -225,7 +255,7 @@ if __name__ == "__main__":
                 csvData = getCSVData(args.csv)
                 if csvData:
                     if args.type:
-                        validRelation = ['adminto', 'canrdp']
+                        validRelation = ['adminto', 'canrdp', 'canpsremote', 'executedcom']
                         if (args.type.lower() in validRelation): 
                             main(csvData, args.domain, args.type.lower())
                         else:
