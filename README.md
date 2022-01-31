@@ -14,19 +14,30 @@ neo4j
 
 ## SessionHound Usage
 ```
-usage: SessionHound.py [-h] [-d DOMAIN] [-c CSV]
+usage: SessionHound.py [-h] [--neo4j-uri NEO4J_URI] [-u USERNAME]
+                       [--password PASSWORD] [--debug] [--dry-run]
+                       csv
 
 Import computer session data from a CSV file into BloodHound's Neo4j database.
 The CSV should have two colums matching the following header structure:
 ['username', 'hostname']
 
+positional arguments:
+  csv                   The path to the CSV file containing the session data
+                        to import.
+
 optional arguments:
   -h, --help            show this help message and exit
-  -d DOMAIN, --domain DOMAIN
-                        The base AD Domain for your environment. i.e.
-                        EXAMPLE.COM
-  -c CSV, --csv CSV     The path to the CSV file containing the session data
-                        to import.
+  --neo4j-uri NEO4J_URI
+                        Neo4j connection string (Default:
+                        bolt://localhost:7687 )
+  -u USERNAME, --username USERNAME
+                        Neo4j username (Default: neo4j)
+  --password PASSWORD   Neo4j password. If not provided on the command line,
+                        you will be prompted to enter it.
+  --debug               Print debug information.
+  --dry-run             Verify connectivity to neo4j and check for CSV parsing
+                        issues, but don't actually import data
 ```
 
 ## SessionHound CSV File Format
