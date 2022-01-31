@@ -8,13 +8,11 @@ from timeit import default_timer as timer
 
 
 class BloodHoundDatabase(object):
-    def __init__(self, connection_string="bolt://localhost:7687", username="neo4j", password="neo4j",
-                 dry_run=False):
+    def __init__(self, connection_string="bolt://localhost:7687", username="neo4j", password="neo4j"):
         # Default Database Values
         self.neo4jDB = connection_string
         self.username = username
         self.password = password
-        self.dry_run = dry_run
         self.driver = None
         self.db_validated = False
         self.logger = logging.getLogger('SessionHound')
@@ -45,10 +43,8 @@ class BloodHoundDatabase(object):
             start = timer()
             results = session.run(query, parameters=parameters)
 
-            self.logger.debug(
-                '[+] {} with userName = {} and hostName = {} ran in {}s'.format(query, parameters['userName'],
-                                                                                parameters['hostName'],
-                                                                                timer() - start))
+            self.logger.debug(f"[+] {query} with userName = {parameters['userName']} and "
+                              f"hostName = {parameters['hostName']} ran in {timer() - start}s")
             result = results.single()
             session.close()
 
@@ -70,9 +66,8 @@ class BloodHoundDatabase(object):
             session = self.driver.session()
             start = timer()
             results = session.run(query, parameters=parameters)
-            logger.debug('[+] {} with userName = {} and hostName = {} ran in {}s'.format(query, parameters['userName'],
-                                                                                         parameters['hostName'],
-                                                                                         timer() - start))
+            logger.debug(f"[+] {query} with userName = {parameters['userName']} and "
+                         f"hostName = {parameters['hostName']} ran in {timer() - start}s")
 
             result_list = []
             keys = results.keys()
@@ -107,10 +102,16 @@ def get_csv_data(csv_path):
         return session_list
 
 
+def is_valid_file(parser, arg):
+    if not os.path.exists(arg):
+        parser.error("The file %s does not exist!" % arg)
+    else:
+        return arg
+
+
 def main(csv_data, connection_string="bolt://localhost:7687", username="neo4j", password="neo4j", dry_run=False):
     # Create a BloodHound Neo4j Database Object
-    bh_database = BloodHoundDatabase(connection_string=connection_string, username=username, password=password,
-                                     dry_run=dry_run)
+    bh_database = BloodHoundDatabase(connection_string=connection_string, username=username, password=password)
 
     # Connect to the Neo4j Database
     logger.info('[+] Connecting to Neo4j Database...')
@@ -118,22 +119,22 @@ def main(csv_data, connection_string="bolt://localhost:7687", username="neo4j", 
         logger.info("[-] Unable to connect to neo4j database")
         return False
 
-    # Import the data
-    logger.info('[+] Importing data from CSV file...')
     if not dry_run:
+        # Import the data
+        logger.info('[+] Importing data from CSV file...')
         for user in csv_data:
             logger.debug(f"[+] Importing: {user}")
 
             if not bh_database.session_exists(user):
                 if 'HasSession' in bh_database.add_session(user):
                     logger.info(
-                        '[+] Successfully added session for {} to {}.'.format(user['userName'], user['hostName']))
+                        f"[+] Successfully added session for {user['userName']} to {user['hostName']}.")
                 else:
-                    logger.info('[-] Failed to add session for {} to {}.'.format(user['userName'], user['hostName']))
+                    logger.info(f"[-] Failed to add session for {user['userName']} to {user['hostName']}.")
             else:
                 logger.info(
-                    '[+] Session information already exists for userName = {} on hostName = {}, skipping.'.format(
-                        user['userName'], user['hostName']))
+                    f"[+] Session information already exists for userName = "
+                    f"{user['userName']} on hostName = {user['hostName']}, skipping.")
     else:
         logger.info('[+] No further action taken, as this is a dry-run.')
 
@@ -142,9 +143,10 @@ if __name__ == "__main__":
     # Parse the command line arguments
     parser = argparse.ArgumentParser(
         description='Import computer session data from a CSV file into BloodHound\'s Neo4j database.\n\n'
-                    'The CSV should have two colums matching the following header '
+                    'The CSV should have two columns matching the following header '
                     'structure:\n\n[\'username\', \'hostname\']\n\n')
-    parser.add_argument('csv', type=str, help='The path to the CSV file containing the session data to import.')
+    parser.add_argument('csv', type=lambda x: is_valid_file(parser, x), help='The path to the CSV file containing '
+                                                                             'the session data to import.')
     parser.add_argument('--neo4j-uri', default='bolt://localhost:7687',
                         help='Neo4j connection string (Default: bolt://localhost:7687 )')
     parser.add_argument('-u', '--username', default='neo4j', help='Neo4j username (Default: neo4j)')
@@ -171,18 +173,10 @@ if __name__ == "__main__":
     logger = logging.getLogger('SessionHound')
     logger.debug('Debugging logging is on.')
 
-    if args.csv:
-        if os.path.exists(args.csv):
-            csvData = get_csv_data(args.csv)
-            if csvData:
-                main(csvData, username=args.username, password=neo4j_password,
-                     connection_string=args.neo4j_uri, dry_run=args.dry_run)
-            else:
-                logger.error('[-] Please check the format of your CSV file and ensure it has the expected structure.\n')
-                parser.print_help(sys.stderr)
-        else:
-            logger.error('[-] The CSV file path is invalid.\n')
-            parser.print_help(sys.stderr)
+    csv_data = get_csv_data(args.csv)
+    if csv_data:
+        main(csv_data, username=args.username, password=neo4j_password,
+             connection_string=args.neo4j_uri, dry_run=args.dry_run)
     else:
-        logger.error('[-] No CSV file was provided, you must specify the path to a valid CSV file.\n')
+        logger.error('[-] Please check the format of your CSV file and ensure it has the expected structure.\n')
         parser.print_help(sys.stderr)
