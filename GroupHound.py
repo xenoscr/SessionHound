@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 
-import argparse, csv, getpass, logging, os, sys
+import argparse, csv, getpass, logging, os, sys, warnings
 
 import neo4j.exceptions
 from neo4j import GraphDatabase
@@ -220,6 +220,9 @@ if __name__ == "__main__":
     logging.basicConfig(level=logging_level, format='%(asctime)s - %(name)s - %(levelname)s: %(message)s')
     logger = logging.getLogger('GroupHound')
     logger.debug('Debugging logging is on.')
+
+    # Filter out warnings from neo4j's verify_connectivity
+    warnings.filterwarnings('ignore', "The configuration may change in the future.")
 
     csv_data = get_csv_data(args.csv)
     if csv_data:
